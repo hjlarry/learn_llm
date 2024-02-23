@@ -21,7 +21,8 @@ def json_with_ascii(text):
     return '\n'.join(lines)
 
 
-def prompt_builder(tools):
+def prompt_builder(tools, output_parser):
+    # main.txt需要是gbk编码
     main_prompt_template = load_prompt("prompts/main.json")
     variables = main_prompt_template.input_variables
     partial_variables = {}
@@ -35,18 +36,21 @@ def prompt_builder(tools):
     if tools is not None:
         partial_variables["tools"] = render_text_description(tools)
 
-    output_parser = PydanticOutputParser(pydantic_object=Action)
     partial_variables["format_instructions"] = json_with_ascii(output_parser.get_format_instructions())
 
     prompt_template = main_prompt_template.partial(**partial_variables)
     return prompt_template
 
 
+# final_step.txt需要是gbk编码
+final_prompt = load_prompt("prompts/final_step.json")
+
 if __name__ == "__main__":
     tools = [
         Tool(name="FINISH", func=lambda: None, description="任务完成")
     ]
-    prompt_template = prompt_builder(tools)
+    output_parser = PydanticOutputParser(pydantic_object=Action)
+    prompt_template = prompt_builder(tools, output_parser)
 
     print(prompt_template.format(
         task_description="解决问题",
@@ -54,3 +58,6 @@ if __name__ == "__main__":
         short_term_memory="",
         long_term_memory="",
     ))
+
+    print("====")
+    print(final_prompt)
