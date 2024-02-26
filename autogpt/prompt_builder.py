@@ -44,6 +44,7 @@ def prompt_builder(tools, output_parser):
 
 # final_step.txt需要是gbk编码
 final_prompt = load_prompt("prompts/final_step.json")
+excel_prompt = load_prompt("prompts/excel_analyser.json")
 
 if __name__ == "__main__":
     tools = [
@@ -61,3 +62,5 @@ if __name__ == "__main__":
 
     print("====")
     print(final_prompt)
+    print("====")
+    print(excel_prompt)

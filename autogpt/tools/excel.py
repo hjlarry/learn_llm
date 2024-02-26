@@ -1,5 +1,15 @@
-import pandas as pd
+import warnings
 
+import pandas as pd
+from langchain_experimental.utilities import PythonREPL
+from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv, find_dotenv
+
+from utils import PythonCodeParser, pprint, CODE_COLOR
+from prompt_builder import excel_prompt
+
+load_dotenv(find_dotenv())
+warnings.filterwarnings("ignore")
 
 def get_sheet_names(filename: str) -> str:
     """获取 Excel 文件的工作表名称"""
@@ -26,3 +36,28 @@ def get_first_n_rows(filename: str, n: int = 3) -> str:
 
     result += f"这是 '{filename}' 文件第一个工作表的前{n}行样例：\n\n{n_lines}"
     return result
+
+
+def analyze_excel(query: str, filename: str, verbose=False) -> str:
+    inspections = get_first_n_rows(filename, 3)
+    llm = ChatOpenAI(temperature=0, model_kwargs={"seed": 42})
+    chain = excel_prompt | llm | PythonCodeParser()
+
+    if verbose:
+        pprint("\n#!/usr/bin/env python", CODE_COLOR, end="\n")
+
+    code = ""
+    for c in chain.stream({
+        "query": query,
+        "filename": filename,
+        "inspections": inspections
+    }):
+        if verbose:
+            pprint(c, CODE_COLOR, end="")
+        code += c
+
+    if not code:
+        return "没有找到可执行的Python代码"
+
+    res = PythonREPL().run(code)
+    return res
