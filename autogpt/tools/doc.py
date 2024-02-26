@@ -1,14 +1,9 @@
-from dotenv import load_dotenv, find_dotenv
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredWordDocumentLoader
 from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAI, OpenAIEmbeddings
 
-load_dotenv(find_dotenv())
-
-llm = OpenAI(temperature=0, model_kwargs={"seed": 42})
-embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
+from llm import openai_client, embeddings
 
 
 def load_docs(filename: str):
@@ -39,16 +34,9 @@ def ask_document(filename: str, query: str) -> str:
     db = Chroma.from_documents(documents, embeddings)
 
     qa_chain = RetrievalQA.from_chain_type(
-        llm=llm,
+        llm=openai_client,
         chain_type="stuff",
         retriever=db.as_retriever()
     )
     response = qa_chain.invoke(query + "(请用中文回答)")
     return response
-
-
-if __name__ == "__main__":
-    filename = "../data/供应商资格要求.pdf"
-    query = "销售额达标的标准是多少？"
-    response = ask_document(filename, query)
-    print(response)

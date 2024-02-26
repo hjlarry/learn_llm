@@ -2,10 +2,8 @@ from langchain.prompts import ChatPromptTemplate
 from langchain.prompts.chat import SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv, find_dotenv
 
-load_dotenv(find_dotenv())
+from llm import chat_client
 
 
 def write(query: str):
@@ -17,10 +15,6 @@ def write(query: str):
         ]
     )
 
-    chain = {"query": RunnablePassthrough()} | template | ChatOpenAI() | StrOutputParser()
+    chain = {"query": RunnablePassthrough()} | template | chat_client | StrOutputParser()
 
     return chain.invoke(query)
-
-
-if __name__ == "__main__":
-    print(write("写一封邮件给张三，内容是：你好，我是李四。"))

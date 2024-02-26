@@ -2,14 +2,14 @@ import warnings
 
 import pandas as pd
 from langchain_experimental.utilities import PythonREPL
-from langchain_openai import ChatOpenAI
-from dotenv import load_dotenv, find_dotenv
 
 from utils import PythonCodeParser, pprint, CODE_COLOR
 from prompt_builder import excel_prompt
+from llm import chat_client
 
-load_dotenv(find_dotenv())
+
 warnings.filterwarnings("ignore")
+
 
 def get_sheet_names(filename: str) -> str:
     """获取 Excel 文件的工作表名称"""
@@ -40,8 +40,8 @@ def get_first_n_rows(filename: str, n: int = 3) -> str:
 
 def analyze_excel(query: str, filename: str, verbose=False) -> str:
     inspections = get_first_n_rows(filename, 3)
-    llm = ChatOpenAI(temperature=0, model_kwargs={"seed": 42})
-    chain = excel_prompt | llm | PythonCodeParser()
+
+    chain = excel_prompt | chat_client | PythonCodeParser()
 
     if verbose:
         pprint("\n#!/usr/bin/env python", CODE_COLOR, end="\n")

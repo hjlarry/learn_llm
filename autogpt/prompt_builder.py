@@ -3,10 +3,7 @@ import json
 
 from langchain.prompts import load_prompt
 from langchain.tools.render import render_text_description
-from langchain_core.tools import Tool
-from langchain.output_parsers import PydanticOutputParser
 
-from action import Action
 
 
 def json_with_ascii(text):
@@ -46,21 +43,3 @@ def prompt_builder(tools, output_parser):
 final_prompt = load_prompt("prompts/final_step.json")
 excel_prompt = load_prompt("prompts/excel_analyser.json")
 
-if __name__ == "__main__":
-    tools = [
-        Tool(name="FINISH", func=lambda: None, description="任务完成")
-    ]
-    output_parser = PydanticOutputParser(pydantic_object=Action)
-    prompt_template = prompt_builder(tools, output_parser)
-
-    print(prompt_template.format(
-        task_description="解决问题",
-        work_dir=".",
-        short_term_memory="",
-        long_term_memory="",
-    ))
-
-    print("====")
-    print(final_prompt)
-    print("====")
-    print(excel_prompt)
