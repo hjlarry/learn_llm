@@ -5,7 +5,6 @@ from langchain.prompts import load_prompt
 from langchain.tools.render import render_text_description
 
 
-
 def json_with_ascii(text):
     # 传入一段文字，如果包含一行json，则使json中能显示中文而非\uXXXX转义序列
     lines = text.split('\n')
@@ -42,4 +41,3 @@ def prompt_builder(tools, output_parser):
 # final_step.txt需要是gbk编码
 final_prompt = load_prompt("prompts/final_step.json")
 excel_prompt = load_prompt("prompts/excel_analyser.json")
-

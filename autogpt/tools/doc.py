@@ -3,7 +3,7 @@ from langchain.chains import RetrievalQA
 from langchain_community.document_loaders import PyPDFLoader, UnstructuredWordDocumentLoader
 from langchain_community.vectorstores import Chroma
 
-from llm import openai_client, embeddings
+from llm import embeddings, chat_client
 
 
 def load_docs(filename: str):
@@ -19,7 +19,7 @@ def load_docs(filename: str):
     return pages
 
 
-def ask_document(filename: str, query: str) -> str:
+def ask_document(filename: str, query: str):
     """根据一个文档的内容，回答一个问题"""
     raw_docs = load_docs(filename)
     text_splitter = RecursiveCharacterTextSplitter(
@@ -34,9 +34,9 @@ def ask_document(filename: str, query: str) -> str:
     db = Chroma.from_documents(documents, embeddings)
 
     qa_chain = RetrievalQA.from_chain_type(
-        llm=openai_client,
+        llm=chat_client,
         chain_type="stuff",
         retriever=db.as_retriever()
     )
-    response = qa_chain.invoke(query + "(请用中文回答)")
-    return response
+    response = qa_chain.invoke({"query": query + "(请用中文回答)"})
+    return response.get("result", "没有得到结果")

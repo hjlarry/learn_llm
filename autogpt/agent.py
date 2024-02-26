@@ -47,7 +47,7 @@ class Agent:
         memory = {"short_term_memory": short_memory, "long_term_memory": long_memory}
         for s in reason_chain.stream(memory):
             if verbose:
-                pprint(s, THOUGHT_COLOR)
+                pprint(s, THOUGHT_COLOR, end="")
             response += s
 
         action = self.robust_parser.parse(response)
