@@ -49,7 +49,7 @@ def test_prompt_template():
     print(excel_prompt)
 
 
-# test_excel_analyze()
+test_excel_analyze()
 # test_prompt_template()
 # test_ask_doc()
-test_write()
+# test_write()
