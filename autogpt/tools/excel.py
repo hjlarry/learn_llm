@@ -1,4 +1,4 @@
-import warnings
+import logging
 
 import pandas as pd
 from langchain_experimental.utilities import PythonREPL
@@ -7,8 +7,8 @@ from utils import PythonCodeParser, pprint, CODE_COLOR
 from prompt_builder import excel_prompt
 from llm import chat_client
 
-
-warnings.filterwarnings("ignore")
+# 屏蔽PythonREPL的警告
+logging.getLogger("langchain_experimental.utilities.python").setLevel(logging.ERROR)
 
 
 def get_sheet_names(filename: str) -> str:
@@ -54,6 +54,7 @@ def analyze_excel(query: str, filename: str, verbose=False) -> str:
     }):
         if verbose:
             pprint(c, CODE_COLOR, end="")
+            print("\n")
         code += c
 
     if not code:
