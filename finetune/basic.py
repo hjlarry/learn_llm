@@ -1,7 +1,9 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorWithPadding, TrainingArguments, Trainer, \
     set_seed
 from datasets import load_dataset
+import numpy as np
 
+# windows下应该用conda跑，不然不会调GPU去跑
 # 一个影评数据集，就两列，一列text是评论，另一列label是该评论正面或负面
 DATASET_NAME = "rotten_tomatoes"
 raw_datasets = load_dataset(DATASET_NAME)
@@ -84,7 +86,7 @@ training_args = TrainingArguments(
     output_dir="./output",  # checkpoint保存路径
     evaluation_strategy="steps",  # 按步数计算eval频率
     overwrite_output_dir=True,
-    num_train_epochs=1,  # 训练epoch数
+    num_train_epochs=3,  # 使用训练集的数据训练3轮，该场景1轮即可
     per_device_train_batch_size=BATCH_SIZE,  # 每张卡的batch大小
     gradient_accumulation_steps=1,  # 累加几个step做一次参数更新
     per_device_eval_batch_size=BATCH_SIZE,  # evaluation batch size
@@ -93,7 +95,23 @@ training_args = TrainingArguments(
     save_steps=INTERVAL,  # 每N步保存一个checkpoint
     learning_rate=LR,  # 学习率
     warmup_ratio=WARMUP_RATIO,  # warmup比例
+    eval_accumulation_steps=8  # 使用compute_metric会把测试集上所有数据的模型在GPU上输出成一个张量再转移到CPU会爆显存，这个参数代表多久一次将tensor搬到CPU
 )
+
+
+# 用于tensorboard展示效果
+def compute_metric(eval_predictions):
+    predictions, labels = eval_predictions
+    label_indices = (labels != -100).nonzero()
+    actual_labels = labels[label_indices]
+    label_indices = (label_indices[0], label_indices[1] - 1)
+    selected_logits = predictions[label_indices]
+    predicted_labels = selected_logits[:, label_ids].argmax(axis=-1)
+    predicted_labels = np.array(label_ids)[predicted_labels]
+    correct_predictions = (predicted_labels == actual_labels).sum()
+    accuracy = correct_predictions / len(labels)
+    return {"acc": accuracy}
+
 
 # 定义训练器
 trainer = Trainer(
@@ -102,7 +120,7 @@ trainer = Trainer(
     data_collator=collater,  # 数据校准器
     train_dataset=tokenized_train_dataset,  # 训练集
     eval_dataset=tokenized_valid_dataset,  # 验证集
-    # compute_metrics=compute_metric,  # 计算自定义指标
+    compute_metrics=compute_metric,  # 计算自定义指标
 )
 
 # 开始训练
