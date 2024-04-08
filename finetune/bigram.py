@@ -12,11 +12,13 @@ eval_interval = 100
 learning_rate = 1e-3
 device = "cuda" if torch.cuda.is_available() else "cpu"
 eval_iters = 200
+n_embed = 32
 
 with open("input.txt", "r") as f:
     text = f.read()
 
 chars = sorted(list(set(text)))
+vocab_size = len(chars)
 s_to_i = {s: i for i, s in enumerate(chars)}
 i_to_s = {i: s for i, s in enumerate(chars)}
 encode = lambda s: [s_to_i[c] for c in s]
@@ -38,12 +40,20 @@ def get_batch(split):
 
 
 class BiggramLM(nn.Module):
-    def __init__(self, vocab_size):
+    def __init__(self):
         super().__init__()
-        self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
+        self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
+        self.position_embedding_table = nn.Embedding(block_size, n_embed)
+        self.lm_head = nn.Linear(n_embed, vocab_size)
 
     def forward(self, idx, targets=None):
-        logits = self.token_embedding_table(idx)
+        B, T = idx.shape
+
+        token_emb = self.token_embedding_table(idx) # (B, T, C)
+        position_emb = self.position_embedding_table(torch.arange(T, device=device))  # (T, C)
+        x = token_emb + position_emb # (B, T, C)
+        logits = self.lm_head(x) # (B, T, vocab_size)
+
         if targets is None:
             return logits, None
         B, T, C = logits.shape
@@ -77,7 +87,7 @@ def estimate_loss():
     return out
 
 
-model = BiggramLM(vocab_size=len(chars))
+model = BiggramLM()
 m = model.to(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
 for step in range(max_iters):
