@@ -44,15 +44,17 @@ class BiggramLM(nn.Module):
         super().__init__()
         self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
         self.position_embedding_table = nn.Embedding(block_size, n_embed)
+        self.sa_head = Head(n_embed)
         self.lm_head = nn.Linear(n_embed, vocab_size)
 
     def forward(self, idx, targets=None):
         B, T = idx.shape
 
-        token_emb = self.token_embedding_table(idx) # (B, T, C)
+        token_emb = self.token_embedding_table(idx)  # (B, T, C)
         position_emb = self.position_embedding_table(torch.arange(T, device=device))  # (T, C)
-        x = token_emb + position_emb # (B, T, C)
-        logits = self.lm_head(x) # (B, T, vocab_size)
+        x = token_emb + position_emb  # (B, T, C)
+        x = self.sa_head(x)
+        logits = self.lm_head(x)  # (B, T, vocab_size)
 
         if targets is None:
             return logits, None
@@ -64,12 +66,37 @@ class BiggramLM(nn.Module):
 
     def generate(self, idx, max_new_tokens):
         for _ in range(max_new_tokens):
-            logits, loss = self(idx)
+            # crop the idx to the last block_size tokens, because the position information is feed into self-attention
+            idx_cond = idx[:, -block_size:]
+            logits, loss = self(idx_cond)
             logits = logits[:, -1, :]
             probs = F.softmax(logits, dim=-1)
             idx_next = torch.multinomial(probs, num_samples=1)  # (B,1)
             idx = torch.cat([idx, idx_next], dim=1)  # (B, T+1)
         return idx
+
+
+class Head(nn.Module):
+    # single head
+    def __init__(self, head_size):
+        super().__init__()
+        self.key = nn.Linear(n_embed, head_size, bias=False)
+        self.query = nn.Linear(n_embed, head_size, bias=False)
+        self.value = nn.Linear(n_embed, head_size, bias=False)
+        self.register_buffer("tril", torch.tril(torch.ones(block_size, block_size)))
+
+    def forward(self, x):
+        B, T, C = x.shape
+        k = self.key(x)
+        q = self.query(x)
+        v = self.value(x)
+
+        weight = q @ k.transpose(-2, -1) * C ** -0.5
+        weight = weight.masked_fill(self.tril[:T, :T] == 0, float('-inf'))  # (B, T, T)
+        weight = F.softmax(weight, dim=-1)
+
+        out = weight @ v
+        return out
 
 
 @torch.no_grad()
