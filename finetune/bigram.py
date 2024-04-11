@@ -13,6 +13,7 @@ learning_rate = 1e-3
 device = "cuda" if torch.cuda.is_available() else "cpu"
 eval_iters = 200
 n_embed = 32
+dropout = 0.2
 
 with open("input.txt", "r") as f:
     text = f.read()
@@ -39,13 +40,37 @@ def get_batch(split):
     return x, y
 
 
+class Block(nn.Module):
+    # transformer block: communication followed by computation
+    # sa_head is for communication, ffwd is for computation
+    def __init__(self, n_embed, n_head):
+        super().__init__()
+        head_size = n_embed // n_head
+        self.sa_head = MultiHead(n_head, head_size)
+        self.ffwd = FeedForward(n_embed)
+        self.ln1 = nn.LayerNorm(n_embed)
+        self.ln2 = nn.LayerNorm(n_embed)
+
+    def forward(self, x):
+        # this x +  is residual connection
+        x = x + self.sa_head(self.ln1(x))
+        x = x + self.ffwd(self.ln2(x))
+        return x
+
+
 class BiggramLM(nn.Module):
     def __init__(self):
         super().__init__()
         self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
         self.position_embedding_table = nn.Embedding(block_size, n_embed)
-        self.sa_head = MultiHead(4, n_embed // 4)
-        self.ffwd = FeedForward(n_embed)
+        self.blocks = nn.Sequential(
+            Block(n_embed, 4),
+            Block(n_embed, 4),
+            Block(n_embed, 4),
+            nn.LayerNorm(n_embed)
+        )
+        # self.sa_head = MultiHead(4, n_embed // 4)
+        # self.ffwd = FeedForward(n_embed)
         self.lm_head = nn.Linear(n_embed, vocab_size)
 
     def forward(self, idx, targets=None):
@@ -54,8 +79,9 @@ class BiggramLM(nn.Module):
         token_emb = self.token_embedding_table(idx)  # (B, T, C)
         position_emb = self.position_embedding_table(torch.arange(T, device=device))  # (T, C)
         x = token_emb + position_emb  # (B, T, C)
-        x = self.sa_head(x)
-        x = self.ffwd(x)
+        x = self.blocks(x)
+        # x = self.sa_head(x)
+        # x = self.ffwd(x)
         logits = self.lm_head(x)  # (B, T, vocab_size)
 
         if targets is None:
@@ -87,6 +113,8 @@ class Head(nn.Module):
         self.value = nn.Linear(n_embed, head_size, bias=False)
         self.register_buffer("tril", torch.tril(torch.ones(block_size, block_size)))
 
+        self.dropout = nn.Dropout(dropout)
+
     def forward(self, x):
         B, T, C = x.shape
         k = self.key(x)
@@ -96,6 +124,7 @@ class Head(nn.Module):
         weight = q @ k.transpose(-2, -1) * C ** -0.5
         weight = weight.masked_fill(self.tril[:T, :T] == 0, float('-inf'))  # (B, T, T)
         weight = F.softmax(weight, dim=-1)
+        weight = self.dropout(weight)
 
         out = weight @ v
         return out
@@ -105,17 +134,23 @@ class MultiHead(nn.Module):
     def __init__(self, num_heads, head_size):
         super().__init__()
         self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
+        self.proj = nn.Linear(n_embed, n_embed)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        return torch.cat([h(x) for h in self.heads], dim=-1)
+        out = torch.cat([h(x) for h in self.heads], dim=-1)
+        out = self.proj(out)
+        return out
 
 
 class FeedForward(nn.Module):
     def __init__(self, n_embed):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(n_embed, n_embed),
+            nn.Linear(n_embed, 4 * n_embed),
             nn.ReLU(),
+            nn.Linear(4 * n_embed, n_embed),  # 相当于MultiHead中的proj
+            nn.Dropout(dropout)
         )
 
     def forward(self, x):
