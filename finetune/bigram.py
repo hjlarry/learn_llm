@@ -5,14 +5,16 @@ from torch.nn import functional as F
 torch.manual_seed(1337)
 
 # hyperparameters
-batch_size = 32
-block_size = 8
+batch_size = 64
+block_size = 256
 max_iters = 5000
-eval_interval = 100
-learning_rate = 1e-3
+eval_interval = 500
+learning_rate = 3e-4
 device = "cuda" if torch.cuda.is_available() else "cpu"
 eval_iters = 200
-n_embed = 32
+n_embed = 384
+n_head = 6
+n_layer = 6
 dropout = 0.2
 
 with open("input.txt", "r") as f:
@@ -63,12 +65,7 @@ class BiggramLM(nn.Module):
         super().__init__()
         self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
         self.position_embedding_table = nn.Embedding(block_size, n_embed)
-        self.blocks = nn.Sequential(
-            Block(n_embed, 4),
-            Block(n_embed, 4),
-            Block(n_embed, 4),
-            nn.LayerNorm(n_embed)
-        )
+        self.blocks = nn.Sequential(*[Block(n_embed, n_head=n_head) for _ in range(n_layer)])
         # self.sa_head = MultiHead(4, n_embed // 4)
         # self.ffwd = FeedForward(n_embed)
         self.lm_head = nn.Linear(n_embed, vocab_size)
